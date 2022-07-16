@@ -110,7 +110,7 @@ func (c *Client) authRequest(method string, body []byte) (*http.Request, error) 
 }
 
 // GetTorrents get a list of torrents
-func (c *Client) GetTorrents() ([]Torrent, error) {
+func (c *Client) GetTorrents(recentlyActiveOnly bool) ([]Torrent, error) {
 	cmd := TorrentCommand{
 		Method: "torrent-get",
 		Arguments: TorrentArguments{
@@ -131,13 +131,14 @@ func (c *Client) GetTorrents() ([]Torrent, error) {
 				"seedRatioMode",
 				"error",
 				"errorString",
-				"files",
-				"fileStats",
-				"peers",
-				"trackers",
-				"trackerStats",
+
+				"uploadedEver",
 			},
 		},
+	}
+
+	if recentlyActiveOnly {
+		cmd.Arguments.Ids = "recently-active"
 	}
 
 	req, err := json.Marshal(&cmd)

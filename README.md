@@ -1,75 +1,10 @@
-# Transmission Exporter for Prometheus [![Build Status](https://cloud.drone.io/api/badges/metalmatze/transmission-exporter/status.svg)](https://cloud.drone.io/metalmatze/transmission-exporter)
+This is a fork of https://github.com/metalmatze/transmission-exporter, see the real README there.
 
-[![Docker Pulls](https://img.shields.io/docker/pulls/metalmatze/transmission-exporter.svg?maxAge=604800)](https://hub.docker.com/r/metalmatze/transmission-exporter)
-[![Go Report Card](https://goreportcard.com/badge/github.com/metalmatze/transmission-exporter)](https://goreportcard.com/report/github.com/metalmatze/transmission-exporter)
+I made these changes because the latency of fetching metrics was too slow. My changes improved that latency from ~2 minutes to ~2 seconds (I have several thousand Linux ISOs in Transmission).
 
-Prometheus exporter for [Transmission](https://transmissionbt.com/) metrics, written in Go.
+Summary of changes made in this fork:
 
-# LOOKING FOR MAINTAINERS
-I don't use this exporter anymore and I'd be happy if others would want to take over and maintain it in the future!  
-Write me a DM via [Twitter](https://twitter.com/metalmatze)!
-
-### Installation
-
-    $ go get github.com/metalmatze/transmission-exporter
-
-### Configuration
-
-ENV Variable | Description
-|----------|-----|
-| WEB_PATH | Path for metrics, default: `/metrics` |
-| WEB_ADDR | Address for this exporter to run, default: `:19091` |
-| TRANSMISSION_ADDR | Transmission address to connect with, default: `http://localhost:9091` |
-| TRANSMISSION_USERNAME | Transmission username, no default |
-| TRANSMISSION_PASSWORD | Transmission password, no default |
-
-### Docker
-
-    docker pull metalmatze/transmission-exporter
-    docker run -d -p 19091:19091 metalmatze/transmission-exporter
-
-### Kubernetes (Prometheus)
-
-A sample kubernetes manifest is available in [example/kubernetes](https://github.com/metalmatze/transmission-exporter/blob/master/examples/kubernetes/docker-compose.yml)
-
-Please run: `kubectl apply -f examples/kubernetes/transmission.yml`
-
-You should:
-* Attach the config and downloads volume
-* Configure the password for the exporter
-
-Your prometheus instance will start scraping the metrics automatically. (if configured with annotation based discovery). [more info](https://www.weave.works/docs/cloud/latest/tasks/monitor/configuration-k8s/)
-
-### Docker Compose
-
-Example `docker-compose.yml` with Transmission also running in docker.
-
-    transmission:
-      image: linuxserver/transmission
-      restart: always
-      ports:
-        - "127.0.0.1:9091:9091"
-        - "51413:51413"
-        - "51413:51413/udp"
-    transmission-exporter:
-      image: metalmatze/transmission-exporter
-      restart: always
-      links:
-        - transmission
-      ports:
-        - "127.0.0.1:19091:19091"
-      environment:
-        TRANSMISSION_ADDR: http://transmission:9091
-
-### Development
-
-    make
-
-For development we encourage you to use `make install` instead, it's faster.
-
-Now simply copy the `.env.example` to `.env`, like `cp .env.example .env` and set your preferences.
-Now you're good to go.
-
-### Original authors of the Transmission package  
-Tobias Blom (https://github.com/tubbebubbe/transmission)  
-Long Nguyen (https://github.com/longnguyen11288/go-transmission)
+* Instead of grabbing every torrent, it uses the RPC query `"ids": "recently-active"` to only grab recently active torrents. It still grabs every torrent on the first run, then does recently active only from then on. A map is used to maintain torrents current status, the key is the torrent hash. This way the metrics stay available, they just don't change while the torrent is dormant. This is faster since Transmission doesn't serialize and send unchanged information.
+* Fields for files, peers, and trackes are all removed. **These metrics are no longer exported,** and they are no longer requested as fields in RPC calls. So, **this fork has less functionality**, but it's faster. Those metrics aren't interesting anyway. :)
+* New exported metric `uploaded_ever_bytes`. Technically you could compute this by multiplying the ratio by the size, but I would rather just export the actual integer. Transmission will tell you this if you ask, so `uploadedEver` was added to the list of fields requested from its RPC.
+* `lastScrapeTimedOut` issue fixed by simply changing datatype in JSON struct from bool to int
