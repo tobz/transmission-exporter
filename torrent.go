@@ -27,24 +27,26 @@ type (
 
 	// Torrent represents a transmission torrent
 	Torrent struct {
-		ID            int     `json:"id"`
-		Name          string  `json:"name"`
-		Status        int     `json:"status"`
-		Added         int     `json:"addedDate"`
-		LeftUntilDone int64   `json:"leftUntilDone"`
-		Eta           int     `json:"eta"`
-		UploadRatio   float64 `json:"uploadRatio"`
-		RateDownload  int     `json:"rateDownload"`
-		RateUpload    int     `json:"rateUpload"`
-		DownloadDir   string  `json:"downloadDir"`
-		IsFinished    bool    `json:"isFinished"`
-		PercentDone   float64 `json:"percentDone"`
-		SeedRatioMode int     `json:"seedRatioMode"`
-		HashString    string  `json:"hashString"`
-		Error         int     `json:"error"`
-		ErrorString   string  `json:"errorString"`
-
-		UploadedEver int `json:"uploadedEver"`
+		ID                 int     `json:"id"`
+		Name               string  `json:"name"`
+		Status             int     `json:"status"`
+		Added              int64   `json:"addedDate"`
+		LeftUntilDone      int64   `json:"leftUntilDone"`
+		Eta                int     `json:"eta"`
+		UploadRatio        float64 `json:"uploadRatio"`
+		RateDownload       int     `json:"rateDownload"`
+		RateUpload         int     `json:"rateUpload"`
+		DownloadDir        string  `json:"downloadDir"`
+		IsFinished         bool    `json:"isFinished"`
+		PercentDone        float64 `json:"percentDone"`
+		HashString         string  `json:"hashString"`
+		Error              int     `json:"error"`
+		ErrorString        string  `json:"errorString"`
+		UploadedEver       int64   `json:"uploadedEver"`
+		DownloadedEver     int64   `json:"downloadedEver"`
+		PeersConnected     int     `json:"peersConnected"`
+		PeersGettingFromUs int     `json:"peersGettingFromUs"`
+		PeersSendingToUs   int     `json:"peersSendingToUs"`
 	}
 
 	// ByID implements the sort Interface to sort by ID

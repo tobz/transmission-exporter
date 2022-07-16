@@ -128,11 +128,13 @@ func (c *Client) GetTorrents(recentlyActiveOnly bool) ([]Torrent, error) {
 				"downloadDir",
 				"isFinished",
 				"percentDone",
-				"seedRatioMode",
 				"error",
 				"errorString",
-
 				"uploadedEver",
+				"downloadedEver",
+				"peersConnected",
+				"peersGettingFromUs",
+				"peersSendingToUs",
 			},
 		},
 	}

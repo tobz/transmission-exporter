@@ -53,7 +53,7 @@ func main() {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`<html>
-			<head><title>Node Exporter</title></head>
+			<head><title>Transmission Exporter</title></head>
 			<body>
 			<h1>Transmission Exporter</h1>
 			<p><a href="` + c.WebPath + `">Metrics</a></p>
