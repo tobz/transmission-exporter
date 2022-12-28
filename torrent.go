@@ -11,7 +11,7 @@ type (
 	TorrentArguments struct {
 		Fields       []string              `json:"fields,omitempty"`
 		Torrents     []Torrent             `json:"torrents,omitempty"`
-		Ids          []int                 `json:"ids,omitempty"`
+		Ids          string                `json:"ids,omitempty"`
 		DeleteData   bool                  `json:"delete-local-data,omitempty"`
 		DownloadDir  string                `json:"download-dir,omitempty"`
 		MetaInfo     string                `json:"metainfo,omitempty"`
@@ -27,26 +27,26 @@ type (
 
 	// Torrent represents a transmission torrent
 	Torrent struct {
-		ID            int           `json:"id"`
-		Name          string        `json:"name"`
-		Status        int           `json:"status"`
-		Added         int           `json:"addedDate"`
-		LeftUntilDone int64         `json:"leftUntilDone"`
-		Eta           int           `json:"eta"`
-		UploadRatio   float64       `json:"uploadRatio"`
-		RateDownload  int           `json:"rateDownload"`
-		RateUpload    int           `json:"rateUpload"`
-		DownloadDir   string        `json:"downloadDir"`
-		IsFinished    bool          `json:"isFinished"`
-		PercentDone   float64       `json:"percentDone"`
-		SeedRatioMode int           `json:"seedRatioMode"`
-		HashString    string        `json:"hashString"`
-		Error         int           `json:"error"`
-		ErrorString   string        `json:"errorString"`
-		Files         []File        `json:"files"`
-		FilesStats    []FileStat    `json:"fileStats"`
-		TrackerStats  []TrackerStat `json:"trackerStats"`
-		Peers         []Peer        `json:"peers"`
+		ID                 int     `json:"id"`
+		Name               string  `json:"name"`
+		Status             int     `json:"status"`
+		Added              int64   `json:"addedDate"`
+		LeftUntilDone      int64   `json:"leftUntilDone"`
+		Eta                int     `json:"eta"`
+		UploadRatio        float64 `json:"uploadRatio"`
+		RateDownload       int     `json:"rateDownload"`
+		RateUpload         int     `json:"rateUpload"`
+		DownloadDir        string  `json:"downloadDir"`
+		IsFinished         bool    `json:"isFinished"`
+		PercentDone        float64 `json:"percentDone"`
+		HashString         string  `json:"hashString"`
+		Error              int     `json:"error"`
+		ErrorString        string  `json:"errorString"`
+		UploadedEver       int64   `json:"uploadedEver"`
+		DownloadedEver     int64   `json:"downloadedEver"`
+		PeersConnected     int     `json:"peersConnected"`
+		PeersGettingFromUs int     `json:"peersGettingFromUs"`
+		PeersSendingToUs   int     `json:"peersSendingToUs"`
 	}
 
 	// ByID implements the sort Interface to sort by ID
@@ -92,7 +92,7 @@ type (
 		LastScrapeStartTime   int    `json:"lastScrapeStartTime"`
 		LastScrapeSucceeded   bool   `json:"lastScrapeSucceeded"`
 		LastScrapeTime        int    `json:"lastScrapeTime"`
-		LastScrapeTimedOut    bool   `json:"lastScrapeTimedOut"`
+		LastScrapeTimedOut    int    `json:"lastScrapeTimedOut"`
 		LeecherCount          int    `json:"leecherCount"`
 		NextAnnounceTime      int    `json:"nextAnnounceTime"`
 		NextScrapeTime        int    `json:"nextScrapeTime"`

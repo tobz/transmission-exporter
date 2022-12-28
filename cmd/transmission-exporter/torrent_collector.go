@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"strconv"
+	"sync"
 
 	transmission "github.com/metalmatze/transmission-exporter"
 	"github.com/prometheus/client_golang/prometheus"
@@ -16,19 +17,23 @@ const (
 type TorrentCollector struct {
 	client *transmission.Client
 
-	Status   *prometheus.Desc
-	Added    *prometheus.Desc
-	Files    *prometheus.Desc
-	Finished *prometheus.Desc
-	Done     *prometheus.Desc
-	Ratio    *prometheus.Desc
-	Download *prometheus.Desc
-	Upload   *prometheus.Desc
+	Status             *prometheus.Desc
+	Added              *prometheus.Desc
+	Finished           *prometheus.Desc
+	Done               *prometheus.Desc
+	Ratio              *prometheus.Desc
+	Download           *prometheus.Desc
+	Upload             *prometheus.Desc
+	UploadedEver       *prometheus.Desc
+	DownloadedEver     *prometheus.Desc
+	PeersConnected     *prometheus.Desc
+	PeersGettingFromUs *prometheus.Desc
+	PeersSendingToUs   *prometheus.Desc
 
-	// TrackerStats
-	Downloads *prometheus.Desc
-	Leechers  *prometheus.Desc
-	Seeders   *prometheus.Desc
+	recentlyActiveOnly bool
+
+	cachedTorrents     map[string]transmission.Torrent
+	cachedTorrentsLock sync.Mutex
 }
 
 // NewTorrentCollector creates a new torrent collector with the transmission.Client
@@ -36,7 +41,8 @@ func NewTorrentCollector(client *transmission.Client) *TorrentCollector {
 	const collectorNamespace = "torrent_"
 
 	return &TorrentCollector{
-		client: client,
+		cachedTorrents: make(map[string]transmission.Torrent),
+		client:         client,
 
 		Status: prometheus.NewDesc(
 			namespace+collectorNamespace+"status",
@@ -46,12 +52,6 @@ func NewTorrentCollector(client *transmission.Client) *TorrentCollector {
 		),
 		Added: prometheus.NewDesc(
 			namespace+collectorNamespace+"added",
-			"The unixtime time a torrent was added",
-			[]string{"id", "name"},
-			nil,
-		),
-		Files: prometheus.NewDesc(
-			namespace+collectorNamespace+"files_total",
 			"The unixtime time a torrent was added",
 			[]string{"id", "name"},
 			nil,
@@ -86,24 +86,34 @@ func NewTorrentCollector(client *transmission.Client) *TorrentCollector {
 			[]string{"id", "name"},
 			nil,
 		),
-
-		// TrackerStats
-		Downloads: prometheus.NewDesc(
-			namespace+collectorNamespace+"downloads_total",
-			"How often this torrent was downloaded",
-			[]string{"id", "name", "tracker"},
+		UploadedEver: prometheus.NewDesc(
+			namespace+collectorNamespace+"uploaded_ever_bytes",
+			"The amount of bytes that have been uploaded from a torrent ever",
+			[]string{"id", "name"},
 			nil,
 		),
-		Leechers: prometheus.NewDesc(
-			namespace+collectorNamespace+"leechers",
-			"The number of peers downloading this torrent",
-			[]string{"id", "name", "tracker"},
+		DownloadedEver: prometheus.NewDesc(
+			namespace+collectorNamespace+"downloaded_ever_bytes",
+			"The amount of bytes that have been downloaded from a torrent ever",
+			[]string{"id", "name"},
 			nil,
 		),
-		Seeders: prometheus.NewDesc(
-			namespace+collectorNamespace+"seeders",
-			"The number of peers uploading this torrent",
-			[]string{"id", "name", "tracker"},
+		PeersConnected: prometheus.NewDesc(
+			namespace+collectorNamespace+"peers_connected",
+			"The quantity of peers connected on a torrent",
+			[]string{"id", "name"},
+			nil,
+		),
+		PeersGettingFromUs: prometheus.NewDesc(
+			namespace+collectorNamespace+"peers_getting_from_us",
+			"The quantity of peers getting pieces of a torrent from us",
+			[]string{"id", "name"},
+			nil,
+		),
+		PeersSendingToUs: prometheus.NewDesc(
+			namespace+collectorNamespace+"peers_sending_to_us",
+			"The quantity of peers sending pieces of a torrent to us",
+			[]string{"id", "name"},
 			nil,
 		),
 	}
@@ -113,26 +123,40 @@ func NewTorrentCollector(client *transmission.Client) *TorrentCollector {
 func (tc *TorrentCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- tc.Status
 	ch <- tc.Added
-	ch <- tc.Files
 	ch <- tc.Finished
 	ch <- tc.Done
 	ch <- tc.Ratio
 	ch <- tc.Download
 	ch <- tc.Upload
-	ch <- tc.Downloads
-	ch <- tc.Leechers
-	ch <- tc.Seeders
+	ch <- tc.UploadedEver
+	ch <- tc.DownloadedEver
+	ch <- tc.PeersConnected
+	ch <- tc.PeersGettingFromUs
+	ch <- tc.PeersSendingToUs
 }
 
 // Collect implements the prometheus.Collector interface
 func (tc *TorrentCollector) Collect(ch chan<- prometheus.Metric) {
-	torrents, err := tc.client.GetTorrents()
+	torrents, err := tc.client.GetTorrents(tc.recentlyActiveOnly)
 	if err != nil {
 		log.Printf("failed to get torrents: %v", err)
 		return
 	}
-
+	tc.cachedTorrentsLock.Lock()
+	var realTorrentsList []transmission.Torrent
 	for _, t := range torrents {
+		tc.cachedTorrents[t.HashString] = t
+	}
+	for _, t := range tc.cachedTorrents {
+		realTorrentsList = append(realTorrentsList, t)
+	}
+	tc.cachedTorrentsLock.Unlock()
+
+	if len(realTorrentsList) > 0 {
+		tc.recentlyActiveOnly = true // only do this if successful
+	}
+
+	for _, t := range realTorrentsList {
 		var finished float64
 
 		id := strconv.Itoa(t.ID)
@@ -151,12 +175,6 @@ func (tc *TorrentCollector) Collect(ch chan<- prometheus.Metric) {
 			tc.Added,
 			prometheus.GaugeValue,
 			float64(t.Added),
-			id, t.Name,
-		)
-		ch <- prometheus.MustNewConstMetric(
-			tc.Files,
-			prometheus.GaugeValue,
-			float64(len(t.Files)),
 			id, t.Name,
 		)
 		ch <- prometheus.MustNewConstMetric(
@@ -189,38 +207,35 @@ func (tc *TorrentCollector) Collect(ch chan<- prometheus.Metric) {
 			float64(t.RateUpload),
 			id, t.Name,
 		)
-
-		tstats := make(map[string]transmission.TrackerStat)
-
-		for _, tracker := range t.TrackerStats {
-			if tr, exists := tstats[tracker.Host]; exists {
-				tr.DownloadCount += tracker.DownloadCount
-			} else {
-				tstats[tracker.Host] = tracker
-			}
-		}
-
-		for _, tracker := range tstats {
-			ch <- prometheus.MustNewConstMetric(
-				tc.Downloads,
-				prometheus.GaugeValue,
-				float64(tracker.DownloadCount),
-				id, t.Name, tracker.Host,
-			)
-
-			ch <- prometheus.MustNewConstMetric(
-				tc.Leechers,
-				prometheus.GaugeValue,
-				float64(tracker.LeecherCount),
-				id, t.Name, tracker.Host,
-			)
-
-			ch <- prometheus.MustNewConstMetric(
-				tc.Seeders,
-				prometheus.GaugeValue,
-				float64(tracker.SeederCount),
-				id, t.Name, tracker.Host,
-			)
-		}
+		ch <- prometheus.MustNewConstMetric(
+			tc.UploadedEver,
+			prometheus.GaugeValue,
+			float64(t.UploadedEver),
+			id, t.Name,
+		)
+		ch <- prometheus.MustNewConstMetric(
+			tc.DownloadedEver,
+			prometheus.GaugeValue,
+			float64(t.DownloadedEver),
+			id, t.Name,
+		)
+		ch <- prometheus.MustNewConstMetric(
+			tc.PeersConnected,
+			prometheus.GaugeValue,
+			float64(t.PeersConnected),
+			id, t.Name,
+		)
+		ch <- prometheus.MustNewConstMetric(
+			tc.PeersGettingFromUs,
+			prometheus.GaugeValue,
+			float64(t.PeersGettingFromUs),
+			id, t.Name,
+		)
+		ch <- prometheus.MustNewConstMetric(
+			tc.PeersSendingToUs,
+			prometheus.GaugeValue,
+			float64(t.PeersSendingToUs),
+			id, t.Name,
+		)
 	}
 }

@@ -2,6 +2,7 @@
 /dashboards/jsonnetfile.lock.json
 /dashboards/vendor/
 /transmission-exporter
+/cmd/transmission-exporter/transmission-exporter
 
 *.o
 *.a
