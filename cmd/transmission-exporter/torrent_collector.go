@@ -1,12 +1,12 @@
 package main
 
 import (
-	"log"
 	"strconv"
 	"sync"
 
-	transmission "github.com/metalmatze/transmission-exporter"
 	"github.com/prometheus/client_golang/prometheus"
+	transmission "github.com/tobz/transmission-exporter"
+	"go.uber.org/zap"
 )
 
 const (
@@ -15,6 +15,7 @@ const (
 
 // TorrentCollector has a transmission.Client to create torrent metrics
 type TorrentCollector struct {
+	logger *zap.Logger
 	client *transmission.Client
 
 	Status             *prometheus.Desc
@@ -32,17 +33,18 @@ type TorrentCollector struct {
 
 	recentlyActiveOnly bool
 
-	cachedTorrents     map[string]transmission.Torrent
-	cachedTorrentsLock sync.Mutex
+	torrentMap     map[int]transmission.Torrent
+	torrentMapLock sync.Mutex
 }
 
 // NewTorrentCollector creates a new torrent collector with the transmission.Client
-func NewTorrentCollector(client *transmission.Client) *TorrentCollector {
+func NewTorrentCollector(logger *zap.Logger, client *transmission.Client) *TorrentCollector {
 	const collectorNamespace = "torrent_"
 
 	return &TorrentCollector{
-		cachedTorrents: make(map[string]transmission.Torrent),
-		client:         client,
+		torrentMap: make(map[int]transmission.Torrent),
+		logger:     logger,
+		client:     client,
 
 		Status: prometheus.NewDesc(
 			namespace+collectorNamespace+"status",
@@ -137,26 +139,33 @@ func (tc *TorrentCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect implements the prometheus.Collector interface
 func (tc *TorrentCollector) Collect(ch chan<- prometheus.Metric) {
-	torrents, err := tc.client.GetTorrents(tc.recentlyActiveOnly)
+	response, err := tc.client.GetTorrents(tc.recentlyActiveOnly)
 	if err != nil {
-		log.Printf("failed to get torrents: %v", err)
+		tc.logger.Error("Failed to get torrents from Transmission.", zap.Error(err))
 		return
 	}
-	tc.cachedTorrentsLock.Lock()
-	var realTorrentsList []transmission.Torrent
-	for _, t := range torrents {
-		tc.cachedTorrents[t.HashString] = t
-	}
-	for _, t := range tc.cachedTorrents {
-		realTorrentsList = append(realTorrentsList, t)
-	}
-	tc.cachedTorrentsLock.Unlock()
 
-	if len(realTorrentsList) > 0 {
+	var activeTorrents []transmission.Torrent
+
+	// Update our map of cached torrents, both adding any new torrents as well as deleting any
+	// removed torrents. We'll create a new list after doing that to iterate over for metrics.
+	tc.torrentMapLock.Lock()
+	for _, t := range response.Torrents {
+		tc.torrentMap[t.ID] = t
+	}
+	for _, id := range response.RemovedTorrents {
+		delete(tc.torrentMap, id)
+	}
+	for _, t := range tc.torrentMap {
+		activeTorrents = append(activeTorrents, t)
+	}
+	tc.torrentMapLock.Unlock()
+
+	if len(activeTorrents) > 0 {
 		tc.recentlyActiveOnly = true // only do this if successful
 	}
 
-	for _, t := range realTorrentsList {
+	for _, t := range activeTorrents {
 		var finished float64
 
 		id := strconv.Itoa(t.ID)

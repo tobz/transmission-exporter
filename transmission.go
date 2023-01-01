@@ -6,10 +6,13 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
+	neturl "net/url"
 	"strings"
+
+	"go.uber.org/zap"
 )
 
-const endpoint = "/transmission/rpc/"
+const RPC_PATH = "rpc/"
 
 type (
 	// User to authenticate with Transmission
@@ -19,20 +22,31 @@ type (
 	}
 	// Client connects to transmission via HTTP
 	Client struct {
+		logger *zap.Logger
+		client http.Client
+
 		URL   string
 		token string
 
-		User   *User
-		client http.Client
+		User *User
 	}
 )
 
 // New create new transmission torrent
-func New(url string, user *User) *Client {
-	return &Client{
-		URL:  url + endpoint,
-		User: user,
+func New(logger *zap.Logger, url string, user *User) (*Client, error) {
+	rpcUri, err := neturl.ParseRequestURI(url)
+	if err != nil {
+		return nil, err
 	}
+
+	rpcUrl := rpcUri.JoinPath(RPC_PATH).String()
+	logger.Debug("Creating Transmission client.", zap.String("url", rpcUrl))
+
+	return &Client{
+		logger: logger,
+		URL:    rpcUrl,
+		User:   user,
+	}, nil
 }
 
 func (c *Client) post(body []byte) ([]byte, error) {
@@ -110,7 +124,7 @@ func (c *Client) authRequest(method string, body []byte) (*http.Request, error) 
 }
 
 // GetTorrents get a list of torrents
-func (c *Client) GetTorrents(recentlyActiveOnly bool) ([]Torrent, error) {
+func (c *Client) GetTorrents(recentlyActiveOnly bool) (*TorrentArguments, error) {
 	cmd := TorrentCommand{
 		Method: "torrent-get",
 		Arguments: TorrentArguments{
@@ -158,7 +172,7 @@ func (c *Client) GetTorrents(recentlyActiveOnly bool) ([]Torrent, error) {
 		return nil, err
 	}
 
-	return out.Arguments.Torrents, nil
+	return &out.Arguments, nil
 }
 
 // GetSession gets the current session from transmission

@@ -1,14 +1,14 @@
 package main
 
 import (
-	"log"
-
-	"github.com/metalmatze/transmission-exporter"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/tobz/transmission-exporter"
+	"go.uber.org/zap"
 )
 
 // SessionCollector exposes session metrics
 type SessionCollector struct {
+	logger *zap.Logger
 	client *transmission.Client
 
 	AltSpeedDown     *prometheus.Desc
@@ -26,8 +26,9 @@ type SessionCollector struct {
 }
 
 // NewSessionCollector takes a transmission.Client and returns a SessionCollector
-func NewSessionCollector(client *transmission.Client) *SessionCollector {
+func NewSessionCollector(logger *zap.Logger, client *transmission.Client) *SessionCollector {
 	return &SessionCollector{
+		logger: logger,
 		client: client,
 
 		AltSpeedDown: prometheus.NewDesc(
@@ -125,7 +126,7 @@ func (sc *SessionCollector) Describe(ch chan<- *prometheus.Desc) {
 func (sc *SessionCollector) Collect(ch chan<- prometheus.Metric) {
 	session, err := sc.client.GetSession()
 	if err != nil {
-		log.Printf("failed to get session: %v", err)
+		sc.logger.Error("Failed to get session from Transmission.", zap.Error(err))
 		return
 	}
 
@@ -133,13 +134,13 @@ func (sc *SessionCollector) Collect(ch chan<- prometheus.Metric) {
 		sc.AltSpeedDown,
 		prometheus.GaugeValue,
 		float64(session.AltSpeedDown),
-		boolToString(session.AltSpeedEnabled),
+		NumericBool(session.AltSpeedEnabled),
 	)
 	ch <- prometheus.MustNewConstMetric(
 		sc.AltSpeedUp,
 		prometheus.GaugeValue,
 		float64(session.AltSpeedUp),
-		boolToString(session.AltSpeedEnabled),
+		NumericBool(session.AltSpeedEnabled),
 	)
 	ch <- prometheus.MustNewConstMetric(
 		sc.CacheSize,
@@ -156,13 +157,13 @@ func (sc *SessionCollector) Collect(ch chan<- prometheus.Metric) {
 		sc.QueueDown,
 		prometheus.GaugeValue,
 		float64(session.DownloadQueueSize),
-		boolToString(session.DownloadQueueEnabled),
+		NumericBool(session.DownloadQueueEnabled),
 	)
 	ch <- prometheus.MustNewConstMetric(
 		sc.QueueUp,
 		prometheus.GaugeValue,
 		float64(session.SeedQueueSize),
-		boolToString(session.SeedQueueEnabled),
+		NumericBool(session.SeedQueueEnabled),
 	)
 	ch <- prometheus.MustNewConstMetric(
 		sc.PeerLimitGlobal,
@@ -178,19 +179,19 @@ func (sc *SessionCollector) Collect(ch chan<- prometheus.Metric) {
 		sc.SeedRatioLimit,
 		prometheus.GaugeValue,
 		float64(session.SeedRatioLimit),
-		boolToString(session.SeedRatioLimited),
+		NumericBool(session.SeedRatioLimited),
 	)
 	ch <- prometheus.MustNewConstMetric(
 		sc.SpeedLimitDown,
 		prometheus.GaugeValue,
 		float64(session.SpeedLimitDown),
-		boolToString(session.SpeedLimitDownEnabled),
+		NumericBool(session.SpeedLimitDownEnabled),
 	)
 	ch <- prometheus.MustNewConstMetric(
 		sc.SpeedLimitUp,
 		prometheus.GaugeValue,
 		float64(session.SpeedLimitUp),
-		boolToString(session.SpeedLimitUpEnabled),
+		NumericBool(session.SpeedLimitUpEnabled),
 	)
 	ch <- prometheus.MustNewConstMetric(
 		sc.Version,

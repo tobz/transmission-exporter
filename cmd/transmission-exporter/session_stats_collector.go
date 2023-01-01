@@ -1,15 +1,16 @@
 package main
 
 import (
-	"log"
 	"time"
 
-	"github.com/metalmatze/transmission-exporter"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/tobz/transmission-exporter"
+	"go.uber.org/zap"
 )
 
 // SessionStatsCollector exposes SessionStats as metrics
 type SessionStatsCollector struct {
+	logger *zap.Logger
 	client *transmission.Client
 
 	DownloadSpeed  *prometheus.Desc
@@ -26,10 +27,11 @@ type SessionStatsCollector struct {
 }
 
 // NewSessionStatsCollector takes a transmission.Client and returns a SessionStatsCollector
-func NewSessionStatsCollector(client *transmission.Client) *SessionStatsCollector {
+func NewSessionStatsCollector(logger *zap.Logger, client *transmission.Client) *SessionStatsCollector {
 	const collectorNamespace = "session_stats_"
 
 	return &SessionStatsCollector{
+		logger: logger,
 		client: client,
 
 		DownloadSpeed: prometheus.NewDesc(
@@ -109,7 +111,7 @@ func (sc *SessionStatsCollector) Describe(ch chan<- *prometheus.Desc) {
 func (sc *SessionStatsCollector) Collect(ch chan<- prometheus.Metric) {
 	stats, err := sc.client.GetSessionStats()
 	if err != nil {
-		log.Printf("failed to get session stats: %v", err)
+		sc.logger.Error("Failed to get session statistics from Transmission.", zap.Error(err))
 		return
 	}
 
