@@ -11,7 +11,7 @@ COPY *.go ./
 RUN ls -l /app/
 RUN go build -v ./cmd/transmission-exporter
 
-FROM alpine:latest
+FROM alpine:3.17
 RUN apk add --update ca-certificates
 
 COPY --from=build /app/transmission-exporter /usr/bin/transmission-exporter
