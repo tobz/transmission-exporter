@@ -59,6 +59,8 @@ func main() {
 	prometheus.MustRegister(NewSessionCollector(logger, client))
 	prometheus.MustRegister(NewSessionStatsCollector(logger, client))
 
+	http.Handle("/health/live", OkHandler())
+	http.Handle("/health/ready", OkHandler())
 	http.Handle(conf.MetricsPath, promhttp.Handler())
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -82,4 +84,9 @@ func NumericBool(v bool) string {
 		return "1"
 	}
 	return "0"
+}
+
+func OkHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	})
 }
